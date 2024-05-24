@@ -5,6 +5,8 @@ require('dotenv').config();
 const axios = require('axios');
 const sqlite3 = require("sqlite3").verbose();
 
+queue = [];
+
 languages = {
     "Python": {
         "name": "python",
@@ -18,7 +20,24 @@ languages = {
         "name": "javascript",
         "version": "20.11.1"
     },
-}
+};
+
+test_cases = {
+    "S3 - Addition": [{
+        "in": "4\n8",
+        "out": "12"
+    }],
+    "A1": [{
+        "in": "a b c\nr a b",
+        "out": "a"
+    }, {
+        "in": "a b c d\nz w x y",
+        "out": ""
+    }, {
+        "in": "a b c d\nb c d a",
+        "out": "d"
+    }]
+};
 
 const PORT = 3008;
 const corsOptions = {
@@ -53,13 +72,14 @@ app.post("/eval", (req, res) => {
     console.log(req.body);
 
     let lang = languages[req.body.Language];
+    let tests = test_cases[req.body.Problem][0];
     let params = {
         "language": lang["name"],
         "version": lang["version"],
         "files": [{
             "content": req.body.Code
         }],
-        "stdin": ["8\n4"],
+        "stdin": [tests["in"]],
         "compile_timeout": 10000,
         "run_timeout": 3000,
         "compile_memory_limit": -1,
@@ -67,7 +87,8 @@ app.post("/eval", (req, res) => {
     }
     axios.post("http://localhost:2000/api/v2/execute", params).then((result) => {
         console.log(result.data);
+        let std_output = result.data.run.stdout.trim();
+        console.log(`OUT ${std_output}`);
         return res.send();
     });
-    console.log()
 });
