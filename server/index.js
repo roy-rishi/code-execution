@@ -3,23 +3,80 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 require('dotenv').config();
 const axios = require('axios');
+const { Queue } = require('bullmq');
+const Worker = require('bullmq').Worker;
+require("dotenv").config();
 const sqlite3 = require("sqlite3").verbose();
 
-queue = [];
+var SERVER_URL = process.env.SERVER_URL;
+
+// create execution queue
+const execution_queue = new Queue("exec", {
+    connection: {
+        host: "localhost",
+        port: 6379
+    },
+    limiter: {
+        max: 5
+    }
+});
+// create worker
+const worker = new Worker("exec", async job => {
+    console.log(job.data);
+}, {
+    connection: {
+        host: "localhost",
+        port: 6379
+    }
+});
+// add jobs to queue
+async function addJobs() {
+    await execution_queue.add("myJobName", { exec: "bar" });
+    await execution_queue.add("myJobName", { qux: "baz" });
+}
+addJobs();
 
 languages = {
     "Python": {
         "name": "python",
-        "version": "3.9.4"
+        "version": "3.10.0",
+        "timeout": 4000
     },
     "Java": {
         "name": "java",
-        "version": "15.0.2"
+        "version": "15.0.2",
+        "timeout": 4000
     },
     "JavaScript": {
         "name": "javascript",
-        "version": "20.11.1"
+        "version": "18.15.0",
+        "timeout": 4000
     },
+    "TypeScript": {
+        "name": "typescript",
+        "version": "5.0.3",
+        "timeout": 4000
+    },
+    "C++": {
+        "name": "c++",
+        "version": "10.2.0",
+        "timeout": 4000
+    },
+    "C": {
+        "name": "c",
+        "version": "10.2.0",
+        "timeout": 4000
+    },
+    "C#": {
+        "name": "csharp.net",
+        "version": "5.0.201",
+        "timeout": 4000
+    },
+    "Ruby": {
+        "name": "ruby",
+        "version": "3.0.1",
+        "timeout": 4000
+    }
 };
 
 test_cases = {
@@ -74,21 +131,24 @@ app.post("/eval", (req, res) => {
     let lang = languages[req.body.Language];
     let tests = test_cases[req.body.Problem][0];
     let params = {
+        headers: {
+            "Content-Type": "application/json"
+        },
         "language": lang["name"],
         "version": lang["version"],
         "files": [{
             "content": req.body.Code
         }],
-        "stdin": [tests["in"]],
-        "compile_timeout": 10000,
-        "run_timeout": 3000,
-        "compile_memory_limit": -1,
-        "run_memory_limit": -1,
-    }
-    axios.post("http://localhost:2000/api/v2/execute", params).then((result) => {
+        "stdin": tests["in"],
+        "run_timeout": lang["timeout"]
+        // "compile_timeout": 10000,
+        // "compile_memory_limit": -1,
+        // "run_memory_limit": -1
+    };
+    axios.post(`${SERVER_URL}/execute`, params).then((result) => {
         console.log(result.data);
         let std_output = result.data.run.stdout.trim();
-        console.log(`OUT ${std_output}`);
+        console.log(`  OUT ${std_output}`);
         return res.send();
     });
 });
