@@ -25,26 +25,22 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors(corsOptions))
 app.listen(SERVER_PORT);
 
-// create execution queue
-const execution_queue = new Queue("exec", {
+const queue = new Queue("queue", {
     connection: {
         host: REDIS_HOST,
         port: REDIS_PORT
     }
 });
 
-// create worker
-const worker = new Worker("exec", async (job) => { await run(job.data); }, {
-// const worker = new Worker("exec", async job => { console.log("i hate this"); }, {
+const worker = new Worker("queue", async (job) => {await run(job.data) }, {
     connection: {
         host: REDIS_HOST,
         port: REDIS_PORT
     },
-    concurrency: 1,
-    // limiter: {
-    //     max: 1, // rate limit
-    //     duration: 3000
-    // }
+    limiter: {
+        max: 1,
+        duration: 400
+    }
 });
 
 // listen for completion
@@ -109,6 +105,18 @@ test_cases = {
     }, {
         "in": "3\n-1",
         "out": "2"
+    }, {
+        "in": "3\n-1",
+        "out": "2"
+    }, {
+        "in": "3\n-1",
+        "out": "2"
+    }, {
+        "in": "3\n-1",
+        "out": "2"
+    }, {
+        "in": "3\n-1",
+        "out": "2"
     }],
     "A1": [{
         "in": "a b c\nr a b",
@@ -163,16 +171,17 @@ async function run(data) {
 async function evaluate(lang, test_cases, code) {
     for (let i = 0; i < test_cases.length; i++) {
         test_case = test_cases[i];
-        delay_ms = 400 * i; // rate limit
+        // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
-        await execution_queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code }, {
-            delay: delay_ms,
+        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code }, {
+            // retry failed jobs
             attempts: 3,
             backoff: {
-                // retry failed jobs
                 type: "exponential",
                 delay: 1000
-            }
+            },
+            removeOnComplete: true,
+            removeOnFail: true
         });
     }
 }
