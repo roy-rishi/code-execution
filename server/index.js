@@ -5,6 +5,7 @@ require("dotenv").config();
 const axios = require('axios');
 const { Queue } = require('bullmq');
 const Worker = require('bullmq').Worker;
+const fs = require('node:fs');
 const sqlite3 = require("sqlite3").verbose();
 
 const API_URL = process.env.SERVER_URL;
@@ -32,7 +33,7 @@ const queue = new Queue("queue", {
     }
 });
 
-const worker = new Worker("queue", async (job) => {await run(job.data) }, {
+const worker = new Worker("queue", async (job) => { await run(job.data) }, {
     connection: {
         host: REDIS_HOST,
         port: REDIS_PORT
@@ -97,38 +98,17 @@ languages = {
     }
 };
 
-// TODO: move and .gitignore
-test_cases = {
-    "S3 - Addition": [{
-        "in": "4\n8",
-        "out": "12"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }],
-    "A1": [{
-        "in": "a b c\nr a b",
-        "out": "a"
-    }, {
-        "in": "a b c d\nz w x y",
-        "out": ""
-    }, {
-        "in": "a b c d\nb c d a",
-        "out": "d"
-    }]
-};
+// test cases to be populated from /NCC-2024-Problems/problems
+test_cases = {};
+
+class TestCase {
+    constructor(input, output, sample, strength) {
+        this.input = input;
+        this.output = output;
+        this.sample = sample;
+        this.strength = strength;
+    }
+}
 
 // validate auth header
 function validAuth(auth_header) {
@@ -186,6 +166,33 @@ async function evaluate(lang, test_cases, code) {
     }
 }
 
+function loadTestCases() {
+    if (!fs.existsSync("NCC-2024-Problems"))
+        throw new Error("Need to clone https://github.com/albert-du/NCC-2024-Problems");
+
+    // list all problem directories
+    const problemDirs = fs.readdirSync("NCC-2024-Problems/problems");
+    console.log("Loading from the following...");
+    console.log(problemDirs);
+    // load test cases from each problem directory
+    for (let problemDir of problemDirs) {
+        console.log(problemDir);
+        try {
+            const cases = JSON.parse(fs.readFileSync(`NCC-2024-Problems/problems/${problemDir}/cases.json`, "utf8"));
+            // add all test cases from problem
+            let problem_cases = [];
+            for (let c of cases) {
+                problem_cases.push(new TestCase(c["input"], c["output"], c["sample"], c["strength"]));
+            }
+            test_cases[problemDir] = problem_cases;
+        } catch (err) {
+            console.log(err);
+        }
+    }
+    console.log("\nLOADED TEST CASES")
+    console.log(test_cases);
+}
+
 // landing page
 app.get("/", (req, res) => {
     console.log("\nGET /");
@@ -204,4 +211,13 @@ app.post("/eval", (req, res) => {
     console.log(req.body);
 
     evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code);
+});
+
+app.post("/update-cases", (req, res) => {
+    console.log("\nPOST /update-cases");
+    const auth_header = req.headers.authorization;
+    if (!validAuth(auth_header))
+        return res.status(401).send();
+    loadTestCases();
+    res.send();
 });
