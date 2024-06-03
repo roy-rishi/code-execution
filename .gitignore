@@ -1,6 +1,7 @@
 NCC-2024-Problems/
 tests/
 .env
+db/
 
 #piston
 piston/

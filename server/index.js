@@ -15,6 +15,28 @@ const SERVER_PORT = 3008;
 const REDIS_HOST = "localhost";
 const REDIS_PORT = 6379;
 
+const DB_PATH = "db/executions.db";
+
+// connect to db
+const db = new sqlite3.Database(DB_PATH, (err) => {
+    if (err)
+        console.log(err);
+    else
+        console.log(`Connected to ${DB_PATH}`);
+});
+// create table if not exists
+db.run(`CREATE TABLE IF NOT EXISTS Executions(
+    TeamName TEXT NOT NULL,
+    Code TEXT NOT NULL,
+    Language TEXT NOT NULL,
+    Problem TEXT NOT NULL,
+    Input TEXT NOT NULL,
+    Output TEXT NOT NULL
+)`, (err) => {
+    if (err)
+        console.log(err);
+});
+
 // init server
 const corsOptions = {
     origin: "*",
@@ -118,9 +140,11 @@ function validAuth(auth_header) {
 // main worker function to be queued
 async function run(data) {
     console.log("\nSTART");
-    let lang = data["lang"];
-    let test_case = data["test case"];
+    let teamName = data["team"];
     let code = data["code"];
+    let lang = data["lang"];
+    let problem = data["problem"];
+    let test_case = data["test case"];
 
     let params = {
         headers: {
@@ -142,18 +166,21 @@ async function run(data) {
     let std_output = result.data.run.stdout.trim();
     let std_err = result.data.run.stderr.trim();
 
-    // return std_output == test_case["out"] && std_err == "";
     // TODO: add result to database
     console.log(std_output == test_case.output && std_err == "");
+    db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output) Values(?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output], (err) => {
+        if (err)
+            console.log(err);
+    });
 }
 
 // queue all test cases for execution
-async function evaluate(lang, prob_cases, code) {
+async function evaluate(lang, prob_cases, code, teamName, problem) {
     for (let i = 0; i < prob_cases.length; i++) {
         test_case = prob_cases[i];
         // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
-        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code }, {
+        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code, "team": teamName, "problem": problem}, {
             // retry failed jobs
             attempts: 3,
             backoff: {
@@ -216,7 +243,7 @@ app.post("/eval", (req, res) => {
             return res.status(400).send("Problem name not found");
     }
     // start evaluation jobs
-    evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code);
+    evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code, req.body["Team Name"], req.body.Problem);
     res.send();
 });
 
