@@ -117,7 +117,7 @@ function validAuth(auth_header) {
 
 // main worker function to be queued
 async function run(data) {
-    console.log("START");
+    console.log("\nSTART");
     let lang = data["lang"];
     let test_case = data["test case"];
     let code = data["code"];
@@ -131,7 +131,7 @@ async function run(data) {
         "files": [{
             "content": code
         }],
-        "stdin": test_case["in"],
+        "stdin": test_case.input,
         "run_timeout": lang["timeout"]
         // "compile_timeout": 10000,
         // "compile_memory_limit": -1,
@@ -144,13 +144,13 @@ async function run(data) {
 
     // return std_output == test_case["out"] && std_err == "";
     // TODO: add result to database
-    console.log(std_output == test_case["out"] && std_err == "");
+    console.log(std_output == test_case.output && std_err == "");
 }
 
 // queue all test cases for execution
-async function evaluate(lang, test_cases, code) {
-    for (let i = 0; i < test_cases.length; i++) {
-        test_case = test_cases[i];
+async function evaluate(lang, prob_cases, code) {
+    for (let i = 0; i < prob_cases.length; i++) {
+        test_case = prob_cases[i];
         // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
         await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code }, {
@@ -166,14 +166,14 @@ async function evaluate(lang, test_cases, code) {
     }
 }
 
+// read test cases from repo at /NCC-2024-Problems
 function loadTestCases() {
     if (!fs.existsSync("NCC-2024-Problems"))
-        throw new Error("Need to clone https://github.com/albert-du/NCC-2024-Problems");
+        throw new Error("Need to clone test cases repo");
 
     // list all problem directories
     const problemDirs = fs.readdirSync("NCC-2024-Problems/problems");
-    console.log("Loading from the following...");
-    console.log(problemDirs);
+    console.log("Loading problems...");
     // load test cases from each problem directory
     for (let problemDir of problemDirs) {
         console.log(problemDir);
@@ -207,10 +207,17 @@ app.post("/eval", (req, res) => {
         return res.status(401).send();
     if (!req.body)
         return res.status(400);
-    res.send()
     console.log(req.body);
 
+    // if problem name is not found, try again after loading test cases
+    if (!(req.body.Problem in test_cases)) {
+        loadTestCases();
+        if (!(req.body.Problem in test_cases))
+            return res.status(400).send("Problem name not found");
+    }
+    // start evaluation jobs
     evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code);
+    res.send();
 });
 
 app.post("/update-cases", (req, res) => {
