@@ -5,6 +5,7 @@ require("dotenv").config();
 const axios = require('axios');
 const { Queue } = require('bullmq');
 const Worker = require('bullmq').Worker;
+const fs = require('node:fs');
 const sqlite3 = require("sqlite3").verbose();
 
 const API_URL = process.env.SERVER_URL;
@@ -32,7 +33,7 @@ const queue = new Queue("queue", {
     }
 });
 
-const worker = new Worker("queue", async (job) => {await run(job.data) }, {
+const worker = new Worker("queue", async (job) => { await run(job.data) }, {
     connection: {
         host: REDIS_HOST,
         port: REDIS_PORT
@@ -97,38 +98,17 @@ languages = {
     }
 };
 
-// TODO: move and .gitignore
-test_cases = {
-    "S3 - Addition": [{
-        "in": "4\n8",
-        "out": "12"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }, {
-        "in": "3\n-1",
-        "out": "2"
-    }],
-    "A1": [{
-        "in": "a b c\nr a b",
-        "out": "a"
-    }, {
-        "in": "a b c d\nz w x y",
-        "out": ""
-    }, {
-        "in": "a b c d\nb c d a",
-        "out": "d"
-    }]
-};
+// test cases to be populated from /NCC-2024-Problems/problems
+test_cases = {};
+
+class TestCase {
+    constructor(input, output, sample, strength) {
+        this.input = input;
+        this.output = output;
+        this.sample = sample;
+        this.strength = strength;
+    }
+}
 
 // validate auth header
 function validAuth(auth_header) {
@@ -137,7 +117,7 @@ function validAuth(auth_header) {
 
 // main worker function to be queued
 async function run(data) {
-    console.log("START");
+    console.log("\nSTART");
     let lang = data["lang"];
     let test_case = data["test case"];
     let code = data["code"];
@@ -151,7 +131,7 @@ async function run(data) {
         "files": [{
             "content": code
         }],
-        "stdin": test_case["in"],
+        "stdin": test_case.input,
         "run_timeout": lang["timeout"]
         // "compile_timeout": 10000,
         // "compile_memory_limit": -1,
@@ -164,13 +144,13 @@ async function run(data) {
 
     // return std_output == test_case["out"] && std_err == "";
     // TODO: add result to database
-    console.log(std_output == test_case["out"] && std_err == "");
+    console.log(std_output == test_case.output && std_err == "");
 }
 
 // queue all test cases for execution
-async function evaluate(lang, test_cases, code) {
-    for (let i = 0; i < test_cases.length; i++) {
-        test_case = test_cases[i];
+async function evaluate(lang, prob_cases, code) {
+    for (let i = 0; i < prob_cases.length; i++) {
+        test_case = prob_cases[i];
         // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
         await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code }, {
@@ -184,6 +164,33 @@ async function evaluate(lang, test_cases, code) {
             removeOnFail: true
         });
     }
+}
+
+// read test cases from repo at /NCC-2024-Problems
+function loadTestCases() {
+    if (!fs.existsSync("NCC-2024-Problems"))
+        throw new Error("Need to clone test cases repo");
+
+    // list all problem directories
+    const problemDirs = fs.readdirSync("NCC-2024-Problems/problems");
+    console.log("Loading problems...");
+    // load test cases from each problem directory
+    for (let problemDir of problemDirs) {
+        console.log(problemDir);
+        try {
+            const cases = JSON.parse(fs.readFileSync(`NCC-2024-Problems/problems/${problemDir}/cases.json`, "utf8"));
+            // add all test cases from problem
+            let problem_cases = [];
+            for (let c of cases) {
+                problem_cases.push(new TestCase(c["input"], c["output"], c["sample"], c["strength"]));
+            }
+            test_cases[problemDir] = problem_cases;
+        } catch (err) {
+            console.log(err);
+        }
+    }
+    console.log("\nLOADED TEST CASES")
+    console.log(test_cases);
 }
 
 // landing page
@@ -200,8 +207,24 @@ app.post("/eval", (req, res) => {
         return res.status(401).send();
     if (!req.body)
         return res.status(400);
-    res.send()
     console.log(req.body);
 
+    // if problem name is not found, try again after loading test cases
+    if (!(req.body.Problem in test_cases)) {
+        loadTestCases();
+        if (!(req.body.Problem in test_cases))
+            return res.status(400).send("Problem name not found");
+    }
+    // start evaluation jobs
     evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code);
+    res.send();
+});
+
+app.post("/update-cases", (req, res) => {
+    console.log("\nPOST /update-cases");
+    const auth_header = req.headers.authorization;
+    if (!validAuth(auth_header))
+        return res.status(401).send();
+    loadTestCases();
+    res.send();
 });
