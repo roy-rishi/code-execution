@@ -16,17 +16,22 @@ const SERVER_PORT = 3008;
 const REDIS_HOST = "localhost";
 const REDIS_PORT = 6379;
 
-const DB_PATH = "db/executions.db";
 
 // connect to db
-const db = new sqlite3.Database(DB_PATH, (err) => {
+const exec_db = new sqlite3.Database("db/executions.db", (err) => {
     if (err)
         console.log(err);
     else
-        console.log(`Connected to ${DB_PATH}`);
+        console.log(`Connected to ${"db/executions.db"}`);
+});
+const team_db = new sqlite3.Database("db/teams.db", (err) => {
+    if (err)
+        console.log(err);
+    else
+        console.log(`Connected to ${"db/teams.db"}`);
 });
 // create table if not exists
-db.run(`CREATE TABLE IF NOT EXISTS Executions(
+exec_db.run(`CREATE TABLE IF NOT EXISTS Executions(
     Key INTEGER PRIMARY KEY AUTOINCREMENT,
     TeamName TEXT NOT NULL,
     Code TEXT NOT NULL,
@@ -36,6 +41,14 @@ db.run(`CREATE TABLE IF NOT EXISTS Executions(
     Output TEXT NOT NULL,
     ExpectedOutput TEXT NOT NULL,
     Passes BOOLEAN NOT NULL CHECK (Passes IN (0, 1))
+)`, (err) => {
+    if (err)
+        console.log(err);
+});
+team_db.run(`CREATE TABLE IF NOT EXISTS Teams(
+    TeamName TEXT NOT NULL UNIQUE,
+    Email TEXT NOT NULL,
+    Division TEXT NOT NULL
 )`, (err) => {
     if (err)
         console.log(err);
@@ -173,11 +186,11 @@ async function run(data) {
     let passes = std_output == test_case.output && std_err == "";
     console.log(passes);
     // if team already submitted this problem, delete past executions
-    db.run("DELETE FROM Executions WHERE TeamName = ? AND Problem = ? AND Input = ?", [teamName, problem, test_case.input], (err) => {
+    exec_db.run("DELETE FROM Executions WHERE TeamName = ? AND Problem = ? AND Input = ?", [teamName, problem, test_case.input], (err) => {
         if (err)
             console.log(err);
 
-        db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, std_output, test_case.output, passes ? 1 : 0], (err) => {
+        exec_db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, std_output, test_case.output, passes ? 1 : 0], (err) => {
             if (err)
                 console.log(err);
         });
@@ -246,15 +259,25 @@ app.post("/eval", (req, res) => {
         return res.status(400);
     console.log(req.body);
 
-    // if problem name is not found, try again after loading test cases
-    if (!(req.body.Problem in test_cases)) {
-        loadTestCases();
-        if (!(req.body.Problem in test_cases))
-            return res.status(400).send("Problem name not found");
-    }
-    // start evaluation jobs
-    evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code, req.body["Team Name"], req.body.Problem);
-    res.send();
+    team_db.all("SELECT * FROM Teams WHERE Email = ? AND TeamName = ?", [req.body.Email, req.body["Team Name"]], (err, rows) => {
+        if (err)
+            return console.log(err);
+        // check if team name and email combo is valid
+        if (rows.length > 0) {
+            // if problem name is not found, try again after loading test cases
+            if (!(req.body.Problem in test_cases)) {
+                loadTestCases();
+                if (!(req.body.Problem in test_cases))
+                    return res.status(400).send("Problem name not found");
+            }
+            // start evaluation jobs
+            evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code, req.body["Team Name"], req.body.Problem);
+            return res.send();
+        } else {
+            console.log("Invalid team name or email");
+            return res.status(400).send("Invalid team name or email");
+        }
+    });
 });
 
 app.post("/update-cases", (req, res) => {
@@ -273,29 +296,43 @@ app.get("/results", (req, res) => {
     if (!validAuth(auth_header))
         return res.status(401).send();
 
-    db.all("SELECT * FROM Executions", (err, rows) => {
+    exec_db.all("SELECT * FROM Executions", (err, rows) => {
         if (err)
             return res.status(500).send(err);
 
         // refresh in-memory test cases
         loadTestCases();
         // loop over all executions, adding points to teams for passed test cases
-        let results = {};
+        let stdResults = {};
         for (let row of rows) {
             let teamName = row["TeamName"];
             let passes = row["Passes"];
-            if (!(teamName in results))
-                results[teamName] = 0;
+            if (!(teamName in stdResults))
+                stdResults[teamName] = 0;
             if (passes == 1)
-                results[teamName] += 1;
+                stdResults[teamName] += 1;
         }
         // sort results
         const sortByValue = (a, b) => b[1] - a[1];
-        let sortedResults = Object.entries(results);
+        let sortedResults = Object.entries(stdResults);
         sortedResults.sort(sortByValue);
         console.log("Sorted results");
         console.log(sortedResults);
 
         return res.send(sortedResults);
+    });
+});
+
+app.post("/register", (req, res) => {
+    console.log("\n/POST /register");
+    const auth_header = req.headers.authorization;
+    if (!validAuth(auth_header))
+        return res.status(401).send();
+    console.log(req.body);
+    res.send();
+
+    team_db.run("INSERT INTO Teams(TeamName, Email, Division) VALUES (?, ?, ?)", [req.body["Team Name"], req.body.Email, req.body.Division], (err) => {
+        if (err)
+            console.log(err);
     });
 });
