@@ -171,9 +171,15 @@ async function run(data) {
 
     let passes = std_output == test_case.output && std_err == "";
     console.log(passes);
-    db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output, test_case.output, passes ? 1 : 0], (err) => {
+    // if team already submitted this problem, delete past executions
+    db.run("DELETE FROM Executions WHERE TeamName = ? AND Problem = ? AND Input = ?", [teamName, problem, test_case.input], (err) => {
         if (err)
             console.log(err);
+
+        db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output, test_case.output, passes ? 1 : 0], (err) => {
+            if (err)
+                console.log(err);
+        });
     });
 }
 
