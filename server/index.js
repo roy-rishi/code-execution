@@ -99,42 +99,42 @@ languages = {
         "name": "python",
         "version": "3.12.0",
         "timeout": 3000
+    },
+    "Java": {
+        "name": "java",
+        "version": "15.0.2",
+        "timeout": 3000
+    },
+    "JavaScript": {
+        "name": "javascript",
+        "version": "20.11.1",
+        "timeout": 3000
+    },
+    "TypeScript": {
+        "name": "typescript",
+        "version": "5.0.3",
+        "timeout": 3000
+    },
+    "C++": {
+        "name": "c++",
+        "version": "10.2.0",
+        "timeout": 3000
+    },
+    "C": {
+        "name": "c",
+        "version": "10.2.0",
+        "timeout": 3000
+    },
+    "C#": {
+        "name": "csharp.net",
+        "version": "5.0.201",
+        "timeout": 3000
+    },
+    "Ruby": {
+        "name": "ruby",
+        "version": "3.0.1",
+        "timeout": 3000
     }
-    // "Java": {
-    //     "name": "java",
-    //     "version": "15.0.2",
-    //     "timeout": 4000
-    // },
-    // "JavaScript": {
-    //     "name": "javascript",
-    //     "version": "18.15.0",
-    //     "timeout": 4000
-    // },
-    // "TypeScript": {
-    //     "name": "typescript",
-    //     "version": "5.0.3",
-    //     "timeout": 4000
-    // },
-    // "C++": {
-    //     "name": "c++",
-    //     "version": "10.2.0",
-    //     "timeout": 4000
-    // },
-    // "C": {
-    //     "name": "c",
-    //     "version": "10.2.0",
-    //     "timeout": 4000
-    // },
-    // "C#": {
-    //     "name": "csharp.net",
-    //     "version": "5.0.201",
-    //     "timeout": 4000
-    // },
-    // "Ruby": {
-    //     "name": "ruby",
-    //     "version": "3.0.1",
-    //     "timeout": 4000
-    // }
 };
 
 // test cases to be populated from /NCC-2024-Problems/problems
