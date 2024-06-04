@@ -9,12 +9,14 @@ function formSubmitHandler(e) {
 n2 = int(input())
 print(n1 + n2)
 `],
-    "Team Name": ["Supercut"],
+    "Team Name": ["The Louvre"],
     "Timestamp": ["5/21/2024 21:06:59"],
-    "Problem": ["Sanity Addition"]
+    "Problem": ["Sanity Addition"],
+    "Email Address": ["2001246@apps.nsd.org"]
   };
   let payload = {
     "Team Name": data["Team Name"][0],
+    "Email": data["Email Address"][0],
     "Problem": data["Problem"][0],
     "Code": data["Code"][0],
     "Language": data["Language"][0],
