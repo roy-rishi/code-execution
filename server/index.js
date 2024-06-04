@@ -97,8 +97,8 @@ worker.on('failed', (job, err) => {
 languages = {
     "Python": {
         "name": "python",
-        "version": "3.10.0",
-        "timeout": 4000
+        "version": "3.12.0",
+        "timeout": 3000
     },
     "Java": {
         "name": "java",
