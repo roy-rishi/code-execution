@@ -27,6 +27,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
 });
 // create table if not exists
 db.run(`CREATE TABLE IF NOT EXISTS Executions(
+    Key INTEGER PRIMARY KEY AUTOINCREMENT,
     TeamName TEXT NOT NULL,
     Code TEXT NOT NULL,
     Language TEXT NOT NULL,
@@ -176,7 +177,7 @@ async function run(data) {
         if (err)
             console.log(err);
 
-        db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output, test_case.output, passes ? 1 : 0], (err) => {
+        db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, std_output, test_case.output, passes ? 1 : 0], (err) => {
             if (err)
                 console.log(err);
         });
