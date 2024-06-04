@@ -99,42 +99,42 @@ languages = {
         "name": "python",
         "version": "3.12.0",
         "timeout": 3000
-    },
-    "Java": {
-        "name": "java",
-        "version": "15.0.2",
-        "timeout": 4000
-    },
-    "JavaScript": {
-        "name": "javascript",
-        "version": "18.15.0",
-        "timeout": 4000
-    },
-    "TypeScript": {
-        "name": "typescript",
-        "version": "5.0.3",
-        "timeout": 4000
-    },
-    "C++": {
-        "name": "c++",
-        "version": "10.2.0",
-        "timeout": 4000
-    },
-    "C": {
-        "name": "c",
-        "version": "10.2.0",
-        "timeout": 4000
-    },
-    "C#": {
-        "name": "csharp.net",
-        "version": "5.0.201",
-        "timeout": 4000
-    },
-    "Ruby": {
-        "name": "ruby",
-        "version": "3.0.1",
-        "timeout": 4000
     }
+    // "Java": {
+    //     "name": "java",
+    //     "version": "15.0.2",
+    //     "timeout": 4000
+    // },
+    // "JavaScript": {
+    //     "name": "javascript",
+    //     "version": "18.15.0",
+    //     "timeout": 4000
+    // },
+    // "TypeScript": {
+    //     "name": "typescript",
+    //     "version": "5.0.3",
+    //     "timeout": 4000
+    // },
+    // "C++": {
+    //     "name": "c++",
+    //     "version": "10.2.0",
+    //     "timeout": 4000
+    // },
+    // "C": {
+    //     "name": "c",
+    //     "version": "10.2.0",
+    //     "timeout": 4000
+    // },
+    // "C#": {
+    //     "name": "csharp.net",
+    //     "version": "5.0.201",
+    //     "timeout": 4000
+    // },
+    // "Ruby": {
+    //     "name": "ruby",
+    //     "version": "3.0.1",
+    //     "timeout": 4000
+    // }
 };
 
 // test cases to be populated from /NCC-2024-Problems/problems
@@ -334,5 +334,15 @@ app.post("/register", (req, res) => {
     team_db.run("INSERT INTO Teams(TeamName, Email, Division) VALUES (?, ?, ?)", [req.body["Team Name"], req.body.Email, req.body.Division], (err) => {
         if (err)
             console.log(err);
+    });
+});
+
+app.get("/albertdatabase", (req, res) => {
+    const auth_header = req.headers.authorization;
+    if (!validAuth(auth_header))
+        return res.status(401).send();
+
+    exec_db.all("SELECT * FROM Executions", (err, rows) => {
+        return res.send(rows);
     });
 });
