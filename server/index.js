@@ -6,6 +6,7 @@ const axios = require('axios');
 const { Queue } = require('bullmq');
 const Worker = require('bullmq').Worker;
 const fs = require('node:fs');
+const { stderr, stdout } = require("node:process");
 const sqlite3 = require("sqlite3").verbose();
 
 const API_URL = process.env.SERVER_URL;
@@ -31,7 +32,9 @@ db.run(`CREATE TABLE IF NOT EXISTS Executions(
     Language TEXT NOT NULL,
     Problem TEXT NOT NULL,
     Input TEXT NOT NULL,
-    Output TEXT NOT NULL
+    Output TEXT NOT NULL,
+    ExpectedOutput TEXT NOT NULL,
+    Passes BOOLEAN NOT NULL CHECK (Passes IN (0, 1))
 )`, (err) => {
     if (err)
         console.log(err);
@@ -166,9 +169,9 @@ async function run(data) {
     let std_output = result.data.run.stdout.trim();
     let std_err = result.data.run.stderr.trim();
 
-    // TODO: add result to database
-    console.log(std_output == test_case.output && std_err == "");
-    db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output) Values(?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output], (err) => {
+    let passes = std_output == test_case.output && std_err == "";
+    console.log(passes);
+    db.run(`INSERT INTO Executions(TeamName, Code, Language, Problem, Input, Output, ExpectedOutput, Passes) Values(?, ?, ?, ?, ?, ?, ?, ?) `, [teamName, code, lang["name"], problem, test_case.input, test_case.output, test_case.output, passes ? 1 : 0], (err) => {
         if (err)
             console.log(err);
     });
@@ -180,7 +183,7 @@ async function evaluate(lang, prob_cases, code, teamName, problem) {
         test_case = prob_cases[i];
         // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
-        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code, "team": teamName, "problem": problem}, {
+        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code, "team": teamName, "problem": problem }, {
             // retry failed jobs
             attempts: 3,
             backoff: {
@@ -252,6 +255,40 @@ app.post("/update-cases", (req, res) => {
     const auth_header = req.headers.authorization;
     if (!validAuth(auth_header))
         return res.status(401).send();
+
     loadTestCases();
     res.send();
+});
+
+app.get("/results", (req, res) => {
+    console.log("\n/GET /results");
+    const auth_header = req.headers.authorization;
+    if (!validAuth(auth_header))
+        return res.status(401).send();
+
+    db.all("SELECT * FROM Executions", (err, rows) => {
+        if (err)
+            return res.status(500).send(err);
+
+        // refresh in-memory test cases
+        loadTestCases();
+        // loop over all executions, adding points to teams for passed test cases
+        let results = {};
+        for (let row of rows) {
+            let teamName = row["TeamName"];
+            let passes = row["Passes"];
+            if (!(teamName in results))
+                results[teamName] = 0;
+            if (passes == 1)
+                results[teamName] += 1;
+        }
+        // sort results
+        const sortByValue = (a, b) => b[1] - a[1];
+        let sortedResults = Object.entries(results);
+        sortedResults.sort(sortByValue);
+        console.log("Sorted results");
+        console.log(sortedResults);
+
+        return res.send(sortedResults);
+    });
 });
