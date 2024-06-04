@@ -11,7 +11,7 @@ print(n1 + n2)
 `],
     "Team Name": ["Supercut"],
     "Timestamp": ["5/21/2024 21:06:59"],
-    "Problem": ["S2 - Coding"]
+    "Problem": ["Sanity Addition"]
   };
   let payload = {
     "Team Name": data["Team Name"][0],
