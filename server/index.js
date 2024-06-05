@@ -33,6 +33,7 @@ const team_db = new sqlite3.Database("db/teams.db", (err) => {
 // create table if not exists
 exec_db.run(`CREATE TABLE IF NOT EXISTS Executions(
     Key INTEGER PRIMARY KEY AUTOINCREMENT,
+    Timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     TeamName TEXT NOT NULL,
     Code TEXT NOT NULL,
     Language TEXT NOT NULL,
@@ -79,7 +80,7 @@ const worker = new Worker("queue", async (job) => { await run(job.data) }, {
     },
     limiter: {
         max: 1,
-        duration: 400
+        duration: 100
     }
 });
 
@@ -162,6 +163,8 @@ async function run(data) {
     let lang = data["lang"];
     let problem = data["problem"];
     let test_case = data["test case"];
+    let timestamp = data["Timestamp"];
+    console.log(timestamp);
 
     let params = {
         headers: {
@@ -198,12 +201,12 @@ async function run(data) {
 }
 
 // queue all test cases for execution
-async function evaluate(lang, prob_cases, code, teamName, problem) {
+async function evaluate(lang, prob_cases, code, teamName, problem, timestamp) {
     for (let i = 0; i < prob_cases.length; i++) {
         test_case = prob_cases[i];
         // delay_ms = 500 * (i + 1); // rate limit
         // queue a single test case for execution
-        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code, "team": teamName, "problem": problem }, {
+        await queue.add(`job${i}`, { "lang": lang, "test case": test_case, "code": code, "team": teamName, "problem": problem, "Timestamp": timestamp}, {
             // retry failed jobs
             attempts: 3,
             backoff: {
@@ -271,7 +274,7 @@ app.post("/eval", (req, res) => {
                     return res.status(400).send("Problem name not found");
             }
             // start evaluation jobs
-            evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code, req.body["Team Name"], req.body.Problem);
+            evaluate(languages[req.body.Language], test_cases[req.body.Problem], req.body.Code, req.body["Team Name"], req.body.Problem, req.body.Timestamp);
             return res.send();
         } else {
             console.log("Invalid team name or email");
